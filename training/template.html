@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手写数字识别 · 神经网络可视化</title>
+<style>
+:root{
+  --bg:#0c1016; --panel:#141a23; --line:#232c39; --text:#e6edf3; --muted:#8b97a7;
+  --amber:#ffb547; --amber-dim:#7a5622; --blue:#58a6ff; --off:#1d2531;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC","Segoe UI",sans-serif}
+header{padding:18px 24px 6px;max-width:1280px;margin:0 auto;display:flex;gap:16px;align-items:flex-start;justify-content:space-between}
+#lang{flex:none;display:flex;padding:3px;border-radius:999px;background:#141a23;border:1px solid #2f3b4b}
+#lang span{padding:5px 12px;border-radius:999px;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none}
+#lang span.on{background:var(--amber);color:#1a1205;font-weight:650}
+h1{font-size:20px;margin:0 0 4px;font-weight:650;letter-spacing:.5px}
+header p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.6}
+main{display:grid;grid-template-columns:330px 1fr;gap:18px;padding:12px 24px 28px;max-width:1280px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:10px 12px 24px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.label{font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px}
+#pad-wrap{position:relative;width:280px;height:280px;margin:0 auto;border-radius:10px;overflow:hidden;
+  background:#000;box-shadow:inset 0 0 0 1px #2c3644}
+#pad{display:block;touch-action:none;cursor:crosshair}
+#hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+  color:#55606f;font-size:14px;pointer-events:none;gap:6px;text-align:center}
+#hint b{font-size:56px;color:#2a3340;font-weight:300}
+.row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
+button{background:#222b38;color:var(--text);border:1px solid #2f3b4b;border-radius:9px;padding:8px 14px;
+  font-size:13.5px;cursor:pointer;font-family:inherit}
+button:hover{background:#2a3545}
+button.primary{background:var(--amber);color:#1a1205;border-color:var(--amber);font-weight:600}
+button.primary:hover{filter:brightness(1.07)}
+.speed{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.speed input{accent-color:var(--amber)}
+#result{display:flex;align-items:center;gap:14px;margin-top:14px;padding:12px 14px;border-radius:12px;background:#0f141b;border:1px solid var(--line)}
+#result .big{font-size:52px;font-weight:700;line-height:1;color:var(--amber);min-width:40px;text-align:center;font-variant-numeric:tabular-nums}
+#result .txt{font-size:13px;color:var(--muted);line-height:1.6}
+#result .txt strong{color:var(--text);font-size:15px}
+#mini{display:flex;gap:14px;align-items:center;margin-top:14px}
+#mini canvas{width:84px;height:84px;image-rendering:pixelated;border-radius:6px;box-shadow:0 0 0 1px #2c3644;background:#000}
+#mini div{font-size:12.5px;color:var(--muted);line-height:1.6}
+#net-card{display:flex;flex-direction:column;min-width:0}
+#stage{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.step{flex:1 1 140px;font-size:12px;padding:8px 10px;border-radius:9px;background:#10161e;border:1px solid var(--line);color:var(--muted);transition:all .25s}
+.step b{display:block;color:var(--text);font-size:12.5px;margin-bottom:2px;font-weight:600}
+.step.on{border-color:var(--amber);background:#221a0d;color:#e9cfa4}
+.step.on b{color:var(--amber)}
+#svg-wrap{position:relative;width:100%}
+svg{width:100%;height:auto;display:block}
+.neuron{cursor:pointer;transition:fill .35s, stroke .35s}
+.neuron:hover{stroke:#fff !important;stroke-width:2}
+.col-title{fill:var(--muted);font-size:12px;letter-spacing:.5px}
+.col-sub{fill:#5c6878;font-size:10.5px}
+.olab{font-size:14px;font-weight:700;pointer-events:none}
+.pct{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+#explain{margin-top:12px;font-size:13.5px;line-height:1.75;color:#c9d3df;min-height:48px}
+#explain .k{color:var(--amber);font-weight:600}
+#inspect{margin-top:12px;display:none;gap:14px;align-items:flex-start;padding:12px;border-radius:12px;background:#0f141b;border:1px solid var(--line)}
+#inspect.show{display:flex}
+#inspect canvas{width:112px;height:112px;image-rendering:pixelated;border-radius:6px;box-shadow:0 0 0 1px #2c3644;flex:none}
+#inspect .t{font-size:13px;line-height:1.7;color:#c9d3df}
+#inspect .t h3{margin:0 0 4px;font-size:14px;color:var(--text)}
+#inspect .mini-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+#inspect .mini-row canvas{width:48px;height:48px}
+.legend{display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+footer{max-width:1280px;margin:0 auto;padding:0 24px 30px;color:#5c6878;font-size:12px;line-height:1.7}
+</style>
+</head>
+<body>
+<header>
+  <div><h1 data-i18n="h1"></h1><p data-i18n="intro"></p></div>
+  <div id="lang" role="group" aria-label="Language"><span data-l="zh">中文</span><span data-l="en">EN</span></div>
+</header>
+<main>
+  <section class="card">
+    <div class="label" data-i18n="padLabel"></div>
+    <div id="pad-wrap">
+      <canvas id="pad" width="280" height="280"></canvas>
+      <div id="hint"><b>7</b><span data-i18n="hint"></span></div>
+    </div>
+    <div class="row">
+      <button id="clear" data-i18n="clear"></button>
+      <button id="replay" class="primary" data-i18n="replay"></button>
+    </div>
+    <div class="row speed">
+      <span data-i18n="speed"></span> <input id="speed" type="range" min="0" max="2" step="1" value="1"> <span id="speed-l"></span>
+    </div>
+    <div id="result">
+      <div class="big" id="r-digit">?</div>
+      <div class="txt" id="r-txt"></div>
+    </div>
+    <div id="mini">
+      <canvas id="in28" width="28" height="28"></canvas>
+      <div data-i18n="mini"></div>
+    </div>
+  </section>
+
+  <section class="card" id="net-card">
+    <div id="stage">
+      <div class="step" data-s="0" data-i18n="st0"></div>
+      <div class="step" data-s="1" data-i18n="st1"></div>
+      <div class="step" data-s="2" data-i18n="st2"></div>
+      <div class="step" data-s="3" data-i18n="st3"></div>
+    </div>
+    <div id="svg-wrap">
+      <svg id="net" viewBox="0 0 800 580" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g id="g-l0"></g><g id="g-l1"></g><g id="g-l2"></g>
+        <g id="g-nodes"></g>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--amber)"></i><span data-i18n="lg1"></span></span>
+      <span><i style="background:var(--blue)"></i><span data-i18n="lg2"></span></span>
+      <span data-i18n="lg3"></span>
+    </div>
+    <div id="explain"></div>
+    <div id="inspect">
+      <canvas id="ins-c" width="28" height="28"></canvas>
+      <div class="t" id="ins-t"></div>
+    </div>
+  </section>
+</main>
+<footer data-i18n="footer"></footer>
+
+<script>
+const MODEL = __MODEL__;
+
+const I18N={
+zh:{title:'手写数字识别 · 神经网络可视化',h1:'手写数字识别 · 看神经网络怎么“想”',
+ intro:'用鼠标（或手指）在黑板上写一个 0–9 的数字，松开后网络会一层一层地“亮起来”，展示从像素到答案的全过程。点任意一个神经元，可以看它在找什么。',
+ padLabel:'✏️ 画板（280 × 280）',hint:'在这里写一个数字<br>写大一点、居中更准',clear:'清除',replay:'▶ 重播识别过程',speed:'动画速度',speeds:['慢放','正常','快速'],
+ waiting:'<strong>等你写一个数字</strong><br>网络会给 0–9 每个数字打分',thinking:'<strong>正在识别…</strong><br>信号正在一层层往后传',
+ mini:'网络真正“看到”的输入：<br>缩小到 <b style="color:#e6edf3">28×28 = 784</b> 个像素，<br>并按重心居中（和训练数据一致）。',
+ st0:'<b>① 输入层</b>784 个像素亮度',st1:'<b>② 隐藏层 1</b>64 个神经元 · 找笔画',st2:'<b>③ 隐藏层 2</b>32 个神经元 · 拼形状',st3:'<b>④ 输出层</b>10 个数字的概率',
+ lg1:'正向贡献（推高下一层）',lg2:'负向贡献（压低下一层）',lg3:'神经元越亮 = 激活值越大',
+ intro2:'写一个数字试试。网络有 <span class="k">52,544</span> 个权重（784×64 + 64×32 + 32×10），识别一次大约做 <span class="k">5 万次乘加</span>——本质上就是三次矩阵乘法。',
+ footer:'模型：全连接网络 784 → 64 (ReLU) → 32 (ReLU) → 10 (softmax)，在合成手写笔画 + 真实手写样本上训练，留出的真实手写测试集准确率约 98%。权重直接内嵌在网页里，全部计算都在你的浏览器本地完成。',
+ cols:[['输入层','28×28 = 784'],['隐藏层 1','64 · ReLU'],['隐藏层 2','32 · ReLU'],['输出层','10 · softmax']],imgCap:'每个像素 = 一个输入神经元',
+ sure:['很有把握','比较有把握','不太确定'],
+ result:(d,c,s,d2,c2)=>`<strong>我认为是 ${d}（${c}%）</strong><br>${s}；第二候选是 ${d2}（${c2}%）`,
+ steps:(lit,on1,on2,best)=>[
+  `<span class="k">① 输入层</span>：你的画被缩小成 28×28 的灰度图，变成 784 个 0~1 之间的数，其中 ${lit} 个像素有笔迹。对网络来说，这就是一长串数字，它并不知道这是“字”。`,
+  `<span class="k">② 隐藏层 1</span>：64 个神经元各自对这 784 个数做<b>加权求和</b>（一次 784×64 的矩阵乘法），再经过 ReLU（负数变 0）。有 ${on1} 个被激活——每个神经元在找某种笔画图案，图案越吻合越亮。点一个亮的神经元看看它在找什么。`,
+  `<span class="k">③ 隐藏层 2</span>：32 个神经元把第 1 层的结果再组合一次（64×32 矩阵乘法），有 ${on2} 个被激活。这一层看的不再是像素，而是“哪些笔画特征同时出现”，比如上面有个圈、右边有一竖。线越粗表示这条连接贡献越大，<span style="color:var(--amber)">橙色</span>是推高，<span style="color:var(--blue)">蓝色</span>是压低。`,
+  `<span class="k">④ 输出层</span>：10 个神经元分别给 0~9 打分，再用 softmax 把分数变成加起来等于 100% 的概率。得分最高的是 <b style="color:var(--amber)">${best}</b>。整个过程在你的浏览器里只花了不到 1 毫秒，动画是故意放慢的。`],
+ actNone:'先写个数字，就能看到它的激活值。',
+ actProb:(p,a)=>`当前概率：<b style="color:var(--amber)">${p}%</b>（原始得分 ${a}）`,
+ actVal:(a,zero)=>`当前激活值：<b style="color:var(--amber)">${a}</b>${zero?'（没被触发）':''}`,
+ h1Title:j=>`隐藏层 1 · 神经元 #${j}`,
+ h1Body:'左图是它连接 784 个像素的<b>权重</b>，排成 28×28：<span style="color:var(--amber)">橙色</span>处有笔迹会让它更亮，<span style="color:var(--blue)">蓝色</span>处有笔迹会抑制它。所以它就是一个“模板”，在找笔迹落在橙色区域的图形。',
+ h2Title:j=>`隐藏层 2 · 神经元 #${j}`,outTitle:j=>`输出层 · 数字 ${j}`,
+ trust:'它最“信任”的上一层神经元（正权重最大的 5 个）：',
+ outNote:'输出神经元的分数 = 隐藏层 2 激活值 × 这些权重 之和 + 偏置。',
+ h2Note:'下面是这些第 1 层神经元各自的权重模板，它们组合起来就是这个神经元关心的形状。',
+ l1Tip:i=>'隐藏层1 #'+i, l2Chip:(i,v)=>'层2 #'+i+'  w='+v},
+en:{title:'Handwritten Digit Recognition · Neural Network Visualizer',h1:'Handwritten Digits · Watch a Neural Network “Think”',
+ intro:'Draw a digit 0–9 with your mouse (or finger). When you let go, the network lights up layer by layer, showing the whole path from pixels to answer. Click any neuron to see what it is looking for.',
+ padLabel:'✏️ Canvas (280 × 280)',hint:'Draw a digit here<br>Bigger and centered works best',clear:'Clear',replay:'▶ Replay',speed:'Animation speed',speeds:['Slow','Normal','Fast'],
+ waiting:'<strong>Waiting for a digit</strong><br>The network scores every digit 0–9',thinking:'<strong>Recognizing…</strong><br>The signal is flowing through the layers',
+ mini:'What the network actually “sees”:<br>shrunk to <b style="color:#e6edf3">28×28 = 784</b> pixels<br>and centered by mass (same as training data).',
+ st0:'<b>① Input layer</b>784 pixel brightness values',st1:'<b>② Hidden layer 1</b>64 neurons · find strokes',st2:'<b>③ Hidden layer 2</b>32 neurons · combine shapes',st3:'<b>④ Output layer</b>probability of each digit',
+ lg1:'Positive contribution (pushes next layer up)',lg2:'Negative contribution (pushes it down)',lg3:'Brighter neuron = higher activation',
+ intro2:'Try drawing a digit. The network has <span class="k">52,544</span> weights (784×64 + 64×32 + 32×10), and one recognition takes about <span class="k">50,000 multiply-adds</span> — really just three matrix multiplications.',
+ footer:'Model: fully connected network 784 → 64 (ReLU) → 32 (ReLU) → 10 (softmax), trained on synthetic handwritten strokes plus real handwriting samples; about 98% accuracy on held-out real handwriting. The weights are embedded in this page and everything runs locally in your browser.',
+ cols:[['Input','28×28 = 784'],['Hidden 1','64 · ReLU'],['Hidden 2','32 · ReLU'],['Output','10 · softmax']],imgCap:'each pixel = one input neuron',
+ sure:['very confident','fairly confident','not sure'],
+ result:(d,c,s,d2,c2)=>`<strong>I think it's ${d} (${c}%)</strong><br>${s}; runner-up is ${d2} (${c2}%)`,
+ steps:(lit,on1,on2,best)=>[
+  `<span class="k">① Input layer</span>: your drawing is shrunk to a 28×28 grayscale image — 784 numbers between 0 and 1, of which ${lit} pixels contain ink. To the network it's just a long list of numbers; it has no idea it's a “digit”.`,
+  `<span class="k">② Hidden layer 1</span>: each of 64 neurons takes a <b>weighted sum</b> of those 784 numbers (one 784×64 matrix multiplication), then applies ReLU (negatives become 0). ${on1} of them fire — each neuron looks for a particular stroke pattern and glows brighter the better it matches. Click a bright one to see what it's looking for.`,
+  `<span class="k">③ Hidden layer 2</span>: 32 neurons combine layer 1's outputs again (a 64×32 matrix multiplication); ${on2} of them fire. This layer no longer looks at pixels but at “which stroke features appear together”, like a loop on top and a stroke on the right. Thicker lines mean bigger contributions: <span style="color:var(--amber)">orange</span> pushes up, <span style="color:var(--blue)">blue</span> pushes down.`,
+  `<span class="k">④ Output layer</span>: 10 neurons score the digits 0–9, and softmax turns the scores into probabilities that add up to 100%. The winner is <b style="color:var(--amber)">${best}</b>. The real computation took under 1 ms in your browser — the animation is slowed down on purpose.`],
+ actNone:'Draw a digit to see its activation.',
+ actProb:(p,a)=>`Current probability: <b style="color:var(--amber)">${p}%</b> (raw score ${a})`,
+ actVal:(a,zero)=>`Current activation: <b style="color:var(--amber)">${a}</b>${zero?' (not firing)':''}`,
+ h1Title:j=>`Hidden layer 1 · neuron #${j}`,
+ h1Body:'The image on the left shows its <b>weights</b> to all 784 pixels, arranged as 28×28: ink on <span style="color:var(--amber)">orange</span> areas makes it brighter, ink on <span style="color:var(--blue)">blue</span> areas suppresses it. So it works like a template, looking for strokes that land in the orange region.',
+ h2Title:j=>`Hidden layer 2 · neuron #${j}`,outTitle:j=>`Output layer · digit ${j}`,
+ trust:'The previous-layer neurons it “trusts” most (5 largest positive weights):',
+ outNote:'Output score = sum of (hidden-layer-2 activation × these weights) + bias.',
+ h2Note:'Below are those layer-1 neurons\' own weight templates — together they make up the shape this neuron cares about.',
+ l1Tip:i=>'Hidden1 #'+i, l2Chip:(i,v)=>'H2 #'+i+'  w='+v}
+};
+let LANG='zh'; try{const s=localStorage.getItem('digitnn-lang'); if(s==='en'||s==='zh') LANG=s; else if(!/^zh/i.test(navigator.language||'')) LANG='en';}catch(e){}
+const T=()=>I18N[LANG];
+
+
+// ---------- 解码权重 ----------
+function decode(w, shape){
+  const bin = atob(w.d), n = bin.length, out = new Float32Array(n);
+  for(let i=0;i<n;i++){ let b = bin.charCodeAt(i); if(b>127) b-=256; out[i]=b*w.s; }
+  return out;
+}
+const SH = MODEL.shapes;               // [[784,64],[64,32],[32,10]]
+const W = MODEL.W.map((w,i)=>decode(w,SH[i]));
+const B = MODEL.B.map(b=>Float32Array.from(b));
+
+function forward(x){
+  const acts=[x]; let h=x;
+  for(let l=0;l<3;l++){
+    const [nin,nout]=SH[l], w=W[l], z=new Float32Array(nout);
+    for(let j=0;j<nout;j++) z[j]=B[l][j];
+    for(let i=0;i<nin;i++){ const v=h[i]; if(!v) continue; const r=i*nout; for(let j=0;j<nout;j++) z[j]+=v*w[r+j]; }
+    if(l<2) for(let j=0;j<nout;j++) z[j]=Math.max(0,z[j]);
+    acts.push(z); h=z;
+  }
+  const lg=acts[3], m=Math.max(...lg); let s=0; const p=new Float32Array(10);
+  for(let j=0;j<10;j++){p[j]=Math.exp(lg[j]-m); s+=p[j];}
+  for(let j=0;j<10;j++) p[j]/=s;
+  return {acts, prob:p};
+}
+
+// ---------- 画板 ----------
+const pad=document.getElementById('pad'), pctx=pad.getContext('2d');
+const hint=document.getElementById('hint');
+pctx.fillStyle='#000'; pctx.fillRect(0,0,280,280);
+pctx.lineCap='round'; pctx.lineJoin='round'; pctx.strokeStyle='#fff'; pctx.lineWidth=20;
+let drawing=false, last=null, dirty=false, liveTimer=null;
+function pos(e){const r=pad.getBoundingClientRect(); return [(e.clientX-r.left)*280/r.width,(e.clientY-r.top)*280/r.height];}
+pad.addEventListener('pointerdown',e=>{
+  drawing=true; last=pos(e); pad.setPointerCapture(e.pointerId); hint.style.display='none';
+  cancelAnim(); pctx.beginPath(); pctx.arc(last[0],last[1],10,0,Math.PI*2); pctx.fillStyle='#fff'; pctx.fill(); dirty=true; scheduleLive();
+});
+pad.addEventListener('pointermove',e=>{
+  if(!drawing) return; const p=pos(e);
+  pctx.beginPath(); pctx.moveTo(last[0],last[1]); pctx.lineTo(p[0],p[1]); pctx.stroke(); last=p; dirty=true; scheduleLive();
+});
+function endStroke(){ if(!drawing) return; drawing=false; if(dirty) runAnimated(); }
+pad.addEventListener('pointerup',endStroke); pad.addEventListener('pointercancel',endStroke);
+function scheduleLive(){ if(liveTimer) return; liveTimer=setTimeout(()=>{liveTimer=null; const r=compute(); if(r) renderInstant(r);},90); }
+
+document.getElementById('clear').onclick=()=>{
+  cancelAnim(); pctx.fillStyle='#000'; pctx.fillRect(0,0,280,280); hint.style.display='flex'; dirty=false;
+  in28ctx.clearRect(0,0,28,28); current=null; renderOff(); setStep(-1);
+  rDigit.textContent='?'; rTxt.innerHTML=T().waiting;
+  explain.innerHTML=T().intro2;
+  inspect.classList.remove('show');
+};
+document.getElementById('replay').onclick=()=>{ if(dirty) runAnimated(); };
+const speedEl=document.getElementById('speed'), speedL=document.getElementById('speed-l');
+const SPEEDS=[[1500],[650],[220]];
+speedEl.oninput=()=>speedL.textContent=T().speeds[speedEl.value];
+
+// ---------- 预处理：裁剪 → 缩放到 20×20 → 按重心放进 28×28 ----------
+const in28=document.getElementById('in28'), in28ctx=in28.getContext('2d');
+function preprocess(){
+  const d=pctx.getImageData(0,0,280,280).data, N=280, g=new Float32Array(N*N);
+  let x0=N,y0=N,x1=-1,y1=-1;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const v=d[(y*N+x)*4]/255; g[y*N+x]=v; if(v>0.1){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
+  if(x1<0) return null;
+  const w=x1-x0+1,h=y1-y0+1,s=20/Math.max(w,h), nw=Math.max(1,Math.round(w*s)), nh=Math.max(1,Math.round(h*s));
+  const sx=w/nw, sy=h/nh, b=new Float32Array(nw*nh);
+  for(let ty=0;ty<nh;ty++)for(let tx=0;tx<nw;tx++){        // 面积平均缩小（抗锯齿）
+    const fy0=ty*sy,fy1=fy0+sy,fx0=tx*sx,fx1=fx0+sx; let acc=0,area=0;
+    for(let yy=Math.floor(fy0);yy<Math.ceil(fy1);yy++){const wy=Math.min(fy1,yy+1)-Math.max(fy0,yy); if(wy<=0)continue;
+      for(let xx=Math.floor(fx0);xx<Math.ceil(fx1);xx++){const wx=Math.min(fx1,xx+1)-Math.max(fx0,xx); if(wx<=0)continue;
+        acc+=g[(y0+yy)*N+(x0+xx)]*wx*wy; area+=wx*wy;}}
+    b[ty*nw+tx]=area?acc/area:0;
+  }
+  let m=0,cx=0,cy=0; for(let y=0;y<nh;y++)for(let x=0;x<nw;x++){const v=b[y*nw+x]; m+=v; cx+=x*v; cy+=y*v;}
+  cx/=m; cy/=m;
+  let ox=Math.round(14-cx), oy=Math.round(14-cy); ox=Math.min(Math.max(ox,0),28-nw); oy=Math.min(Math.max(oy,0),28-nh);
+  const out=new Float32Array(784);
+  for(let y=0;y<nh;y++)for(let x=0;x<nw;x++) out[(oy+y)*28+ox+x]=b[y*nw+x];
+  return out;
+}
+function drawGray(ctx,x){const im=ctx.createImageData(28,28);for(let i=0;i<784;i++){const v=Math.round(Math.min(1,x[i])*255);im.data[i*4]=v;im.data[i*4+1]=v;im.data[i*4+2]=v;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);}
+let current=null;
+function compute(){ const x=preprocess(); if(!x) return null; drawGray(in28ctx,x); current=forward(x); current.x=x; return current; }
+
+// ---------- 画网络 ----------
+const svg=document.getElementById('net'), NS='http://www.w3.org/2000/svg';
+const gNodes=document.getElementById('g-nodes'), gL=[0,1,2].map(i=>document.getElementById('g-l'+i));
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+const COLX=[30,300,500,650], TOP=40, BOT=560;
+const IMG={x:30,y:228,s:140};
+// 列标题
+const colTexts=[IMG.x+IMG.s/2,COLX[1],COLX[2],COLX[3]+40].map(x=>[
+  el('text',{x,y:16,'text-anchor':'middle',class:'col-title'},gNodes),
+  el('text',{x,y:30,'text-anchor':'middle',class:'col-sub'},gNodes)]);
+el('rect',{x:IMG.x-3,y:IMG.y-3,width:IMG.s+6,height:IMG.s+6,rx:6,fill:'none',stroke:'#2c3644'},gNodes);
+const inImg=el('image',{x:IMG.x,y:IMG.y,width:IMG.s,height:IMG.s,style:'image-rendering:pixelated',preserveAspectRatio:'none'},gNodes);
+const imgCap=el('text',{x:IMG.x+IMG.s/2,y:IMG.y+IMG.s+22,'text-anchor':'middle',class:'col-sub'},gNodes);
+function ys(n,top,bot){const a=[];const step=(bot-top)/(n-1);for(let i=0;i<n;i++)a.push(top+i*step);return a;}
+const Y1=ys(64,TOP+8,BOT-8), Y2=ys(32,TOP+30,BOT-30), Y3=ys(10,TOP+40,BOT-40);
+const R=[0,3.6,6.5,16];
+const nodes=[[],[],[],[]], bars=[], pcts=[], olabs=[];
+Y1.forEach((y,i)=>nodes[1].push(el('circle',{cx:COLX[1],cy:y,r:R[1],class:'neuron',fill:'var(--off)',stroke:'#2b3543','stroke-width':.8,'data-l':1,'data-i':i},gNodes)));
+Y2.forEach((y,i)=>nodes[2].push(el('circle',{cx:COLX[2],cy:y,r:R[2],class:'neuron',fill:'var(--off)',stroke:'#2b3543','stroke-width':1,'data-l':2,'data-i':i},gNodes)));
+Y3.forEach((y,i)=>{
+  nodes[3].push(el('circle',{cx:COLX[3],cy:y,r:R[3],class:'neuron',fill:'var(--off)',stroke:'#2b3543','stroke-width':1.2,'data-l':3,'data-i':i},gNodes));
+  const t=el('text',{x:COLX[3],y:y+5,'text-anchor':'middle',class:'olab',fill:'#8b97a7'},gNodes); t.textContent=i; olabs.push(t);
+  el('rect',{x:COLX[3]+24,y:y-5,width:74,height:10,rx:5,fill:'#1a212b'},gNodes);
+  bars.push(el('rect',{x:COLX[3]+24,y:y-5,width:0,height:10,rx:5,fill:'var(--amber)',style:'transition:width .4s'},gNodes));
+  const p=el('text',{x:COLX[3]+104,y:y+4,class:'pct'},gNodes); p.textContent=''; pcts.push(p);
+});
+
+function lerpColor(t){ // off -> amber
+  t=Math.max(0,Math.min(1,t));
+  const a=[0x1d,0x25,0x31], b=[0xff,0xb5,0x47];
+  return `rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')})`;
+}
+function setLayer(l,on){
+  const a=current.acts[l], m=Math.max(1e-6,...a);
+  nodes[l].forEach((n,i)=>{
+    const t=on?a[i]/m:0; n.setAttribute('fill',lerpColor(t));
+    n.setAttribute('stroke',on&&t>0.6?'#ffd38a':'#2b3543');
+    n.setAttribute('filter',on&&t>0.75?'url(#glow)':'');
+  });
+}
+function setOutput(on){
+  const p=current.prob; let best=0; for(let j=1;j<10;j++) if(p[j]>p[best]) best=j;
+  nodes[3].forEach((n,i)=>{
+    const t=on?p[i]:0; n.setAttribute('fill',lerpColor(t));
+    n.setAttribute('stroke',on&&i===best?'#fff':'#2b3543'); n.setAttribute('filter',on&&i===best?'url(#glow)':'');
+    olabs[i].setAttribute('fill',on&&t>0.45?'#1a1205':'#8b97a7');
+    bars[i].setAttribute('width',on?Math.max(0,p[i]*74):0);
+    pcts[i].textContent=on?(p[i]*100).toFixed(1)+'%':'';
+  });
+  return best;
+}
+function clearLines(l){ gL[l].innerHTML=''; }
+function drawLines(l){
+  clearLines(l);
+  const g=gL[l];
+  if(l===0){ // 输入图 → 隐藏层1：每个神经元一条线，亮度 = 激活
+    const a=current.acts[1], m=Math.max(1e-6,...a);
+    Y1.forEach((y,j)=>{ const t=a[j]/m; if(t<0.05) return;
+      const sy=IMG.y+IMG.s*(j/63);
+      el('line',{x1:IMG.x+IMG.s+4,y1:sy,x2:COLX[1]-R[1],y2:y,stroke:'var(--amber)','stroke-width':0.4+1.4*t,'stroke-opacity':0.08+0.55*t},g);
+    });
+    return;
+  }
+  const a=current.acts[l], [nin,nout]=SH[l], w=W[l], X1=COLX[l], X2=COLX[l+1], YA=l===1?Y1:Y2, YB=l===1?Y2:Y3;
+  const c=[]; let m=1e-6;
+  for(let i=0;i<nin;i++){ if(!a[i]) continue; for(let j=0;j<nout;j++){ const v=a[i]*w[i*nout+j]; c.push([i,j,v]); m=Math.max(m,Math.abs(v)); } }
+  c.sort((p,q)=>Math.abs(q[2])-Math.abs(p[2]));
+  const keep=c.slice(0,l===1?220:200);
+  for(const [i,j,v] of keep.reverse()){
+    const t=Math.abs(v)/m;
+    el('line',{x1:X1+R[l],y1:YA[i],x2:X2-R[l+1],y2:YB[j],stroke:v>0?'var(--amber)':'var(--blue)','stroke-width':0.3+2.2*t,'stroke-opacity':0.06+0.7*t},g);
+  }
+}
+function renderOff(){ [1,2,3].forEach(l=>nodes[l].forEach(n=>{n.setAttribute('fill','var(--off)');n.setAttribute('stroke','#2b3543');n.setAttribute('filter','');}));
+  olabs.forEach(t=>t.setAttribute('fill','#8b97a7')); bars.forEach(b=>b.setAttribute('width',0)); pcts.forEach(p=>p.textContent='');
+  [0,1,2].forEach(clearLines); inImg.setAttribute('href',''); }
+function setInputImg(){ inImg.setAttribute('href',in28.toDataURL()); }
+function renderInstant(){ setInputImg(); setLayer(1,true); setLayer(2,true); [0,1,2].forEach(drawLines); const b=setOutput(true); showResult(b); setStep(3,true); }
+
+// ---------- 结果与讲解 ----------
+const rDigit=document.getElementById('r-digit'), rTxt=document.getElementById('r-txt'), explain=document.getElementById('explain');
+function showResult(best){
+  const p=current.prob, order=[...p.keys()].sort((a,b)=>p[b]-p[a]);
+  rDigit.textContent=best;
+  const conf=p[best];
+  const sure=T().sure[conf>0.9?0:conf>0.6?1:2];
+  rTxt.innerHTML=T().result(best,(conf*100).toFixed(1),sure,order[1],(p[order[1]]*100).toFixed(1));
+}
+const steps=[...document.querySelectorAll('.step')];
+function setStep(s,quiet){ steps.forEach((e,i)=>e.classList.toggle('on',i===s)); }
+function stepText(s){
+  const a1=current.acts[1], a2=current.acts[2];
+  const on1=[...a1].filter(v=>v>0).length, on2=[...a2].filter(v=>v>0).length;
+  const lit=[...current.x].filter(v=>v>0.1).length;
+  const best=[...current.prob.keys()].sort((a,b)=>current.prob[b]-current.prob[a])[0];
+  return T().steps(lit,on1,on2,best)[s];
+}
+let animTimers=[];
+function cancelAnim(){ animTimers.forEach(clearTimeout); animTimers=[]; }
+function runAnimated(){
+  cancelAnim(); const r=compute(); if(!r) return;
+  const DUR=SPEEDS[speedEl.value][0];
+  renderOff();
+  const seq=[
+    ()=>{ setStep(0); setInputImg(); explain.innerHTML=stepText(0); rDigit.textContent='…'; rTxt.innerHTML=T().thinking; },
+    ()=>{ setStep(1); drawLines(0); setLayer(1,true); explain.innerHTML=stepText(1); },
+    ()=>{ setStep(2); drawLines(1); setLayer(2,true); explain.innerHTML=stepText(2); },
+    ()=>{ setStep(3); drawLines(2); const b=setOutput(true); showResult(b); explain.innerHTML=stepText(3); if(inspect.classList.contains('show')&&insSel) showInspect(...insSel); },
+  ];
+  seq.forEach((f,i)=>animTimers.push(setTimeout(f,i*DUR)));
+  animTimers.push(setTimeout(()=>{animTimers=[];},(seq.length-1)*DUR+5));
+}
+
+// ---------- 点神经元查看 ----------
+const inspect=document.getElementById('inspect'), insC=document.getElementById('ins-c'), insCtx=insC.getContext('2d'), insT=document.getElementById('ins-t');
+let insSel=null;
+function weightImg(ctx,j){ // 隐藏层1 第 j 个神经元的 784 个输入权重，橙=正，蓝=负
+  const im=ctx.createImageData(28,28); let m=1e-6; for(let i=0;i<784;i++) m=Math.max(m,Math.abs(W[0][i*64+j]));
+  for(let i=0;i<784;i++){ const v=W[0][i*64+j]/m, t=Math.min(1,Math.abs(v)*1.3);
+    const c=v>0?[255,181,71]:[88,166,255];
+    im.data[i*4]=Math.round(12+(c[0]-12)*t); im.data[i*4+1]=Math.round(16+(c[1]-16)*t); im.data[i*4+2]=Math.round(22+(c[2]-22)*t); im.data[i*4+3]=255; }
+  ctx.putImageData(im,0,0);
+}
+function showInspect(l,j){
+  insSel=[l,j]; inspect.classList.add('show');
+  const act=current?current.acts[l][j]:null;
+  const actTxt=act===null?T().actNone:(l===3?T().actProb((current.prob[j]*100).toFixed(1),act.toFixed(2)):T().actVal(act.toFixed(2),act===0));
+  if(l===1){
+    insC.style.display='block'; weightImg(insCtx,j);
+    insT.innerHTML=`<h3>${T().h1Title(j)}</h3>${T().h1Body}<br>${actTxt}`;
+  } else {
+    insC.style.display='none';
+    const nin=SH[l-1][0], nout=SH[l-1][1], w=W[l-1];
+    const ws=[]; for(let i=0;i<nin;i++) ws.push([i,w[i*nout+j]]);
+    ws.sort((a,b)=>b[1]-a[1]); const top=ws.slice(0,5);
+    let html=`<h3>${l===2?T().h2Title(j):T().outTitle(j)}</h3>${actTxt}<br>${T().trust}<div class="mini-row" id="mr"></div>`;
+    html+=`<div style="margin-top:6px;color:var(--muted);font-size:12px">${l===3?T().outNote:T().h2Note}</div>`;
+    insT.innerHTML=html;
+    const mr=document.getElementById('mr');
+    top.forEach(([i,v])=>{
+      if(l===2){ const c=document.createElement('canvas'); c.width=28;c.height=28; c.title=T().l1Tip(i); weightImg(c.getContext('2d'),i); mr.appendChild(c); }
+      else { const s=document.createElement('span'); s.style.cssText='font-size:12px;padding:3px 8px;border-radius:7px;background:#1a212b;color:#c9d3df'; s.textContent=T().l2Chip(i,v.toFixed(2)); mr.appendChild(s); }
+    });
+  }
+}
+function applyLang(){
+  const D=T(); document.documentElement.lang=LANG==='zh'?'zh-CN':'en'; document.title=D.title;
+  document.querySelectorAll('[data-i18n]').forEach(e=>{e.innerHTML=D[e.dataset.i18n];});
+  colTexts.forEach(([a,b],i)=>{a.textContent=D.cols[i][0]; b.textContent=D.cols[i][1];});
+  imgCap.textContent=D.imgCap; speedL.textContent=D.speeds[speedEl.value];
+  document.querySelectorAll('#lang span').forEach(s=>s.classList.toggle('on',s.dataset.l===LANG));
+  const active=steps.findIndex(s=>s.classList.contains('on'));
+  if(current&&animTimers.length===0){ const p=current.prob; let b=0; for(let j=1;j<10;j++) if(p[j]>p[b]) b=j; showResult(b); explain.innerHTML=stepText(active<0?3:active); }
+  else if(!current){ rTxt.innerHTML=D.waiting; explain.innerHTML=D.intro2; }
+  if(insSel&&inspect.classList.contains('show')) showInspect(...insSel);
+}
+document.querySelectorAll('#lang span').forEach(s=>s.onclick=()=>{ LANG=s.dataset.l; try{localStorage.setItem('digitnn-lang',LANG);}catch(e){} applyLang(); });
+gNodes.addEventListener('click',e=>{ const n=e.target.closest('.neuron'); if(!n) return; showInspect(+n.dataset.l,+n.dataset.i); });
+applyLang();
+</script>
+</body>
+</html>

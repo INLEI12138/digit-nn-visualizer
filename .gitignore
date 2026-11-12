@@ -1,0 +1,3 @@
+training/*.npz
+training/preview.png
+__pycache__/
